@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ANALOX · Planetary Analog Discovery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --bg: #08090d;
+    --surface: #0f1319;
+    --surface-2: #161b23;
+    --border: #232a35;
+    --border-strong: #33404f;
+    --text: #e6eaf0;
+    --muted: #6b7689;
+    --accent: #ff6b1a;
+    --accent-hover: #ff8340;
+    --success: #34d399;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --info: #60a5fa;
+    --radius: 8px;
+    --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--font-sans); font-size: 14px;
+    line-height: 1.55; -webkit-font-smoothing: antialiased;
+    display: flex; overflow: hidden;
+  }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px; min-width: 240px; height: 100vh;
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 24px 16px;
+  }
+  .brand {
+    font-family: var(--font-mono); font-size: 18px; font-weight: 700;
+    letter-spacing: 6px; padding: 0 8px; margin-bottom: 4px;
+  }
+  .brand-sub { font-size: 10px; color: var(--muted); letter-spacing: 2px;
+    text-transform: uppercase; padding: 0 8px; margin-bottom: 32px; }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  nav button {
+    text-align: left; background: none; border: none; color: var(--muted);
+    padding: 10px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 10px; transition: all 0.1s;
+  }
+  nav button:hover { background: var(--surface-2); color: var(--text); }
+  nav button.active { background: var(--surface-2); color: var(--text); }
+  nav button.active::before {
+    content: ''; width: 3px; height: 16px; background: var(--accent);
+    border-radius: 2px; position: absolute; left: 0;
+  }
+  nav button { position: relative; }
+  .sidebar-footer {
+    margin-top: auto; padding: 16px 8px; border-top: 1px solid var(--border);
+    font-size: 11px; color: var(--muted);
+  }
+  .sidebar-footer .tag {
+    display: inline-block; background: #2a1508; color: var(--warn);
+    padding: 2px 6px; border-radius: 3px; font-size: 9px;
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;
+  }
+
+  /* Main */
+  main {
+    flex: 1; height: 100vh; overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  section.view { display: none; padding: 48px 56px; max-width: 1400px; }
+  section.view.active { display: block; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 600; margin: 32px 0 16px; }
+  h3 { font-size: 13px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 12px; }
+  .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 32px; max-width: 680px; }
+
+  /* Cards */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 32px;
+  }
+  .stat { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; font-family: var(--font-mono);
+    color: var(--accent); }
+  .stat-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Buttons */
+  .btn-primary {
+    background: var(--accent); color: #000; border: none;
+    padding: 12px 24px; border-radius: 6px; font-size: 13px;
+    font-weight: 600; letter-spacing: 0.5px; transition: background 0.1s;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--surface-2); color: var(--text);
+    border: 1px solid var(--border); padding: 12px 24px;
+    border-radius: 6px; font-size: 13px; font-weight: 500;
+  }
+  .btn-secondary:hover { border-color: var(--border-strong); }
+
+  /* Target selector */
+  .target-grid { display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 16px; margin-bottom: 32px; }
+  .target-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; text-align: left;
+    transition: all 0.15s; position: relative;
+  }
+  .target-card:not(.disabled):hover { border-color: var(--accent); }
+  .target-card.active { border-color: var(--accent); background: #1a1007; }
+  .target-card.disabled { opacity: 0.4; cursor: not-allowed; }
+  .target-name { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .target-desc { font-size: 13px; color: var(--muted); }
+  .target-tag {
+    position: absolute; top: 16px; right: 16px; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase; padding: 3px 8px;
+    border-radius: 3px; background: #1a3a2a; color: var(--success);
+  }
+  .target-card.disabled .target-tag { background: #3a1a1a; color: var(--danger); }
+
+  /* Criteria selection */
+  .criteria-group { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .criteria-group-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .criteria-group-desc { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .criteria-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .criteria-item {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 20px; font-size: 12px;
+    cursor: pointer; transition: all 0.1s;
+  }
+  .criteria-item:hover { border-color: var(--border-strong); }
+  .criteria-item.selected {
+    background: #2a1508; border-color: var(--accent); color: var(--accent);
+  }
+  .criteria-item input { accent-color: var(--accent); }
+
+  /* Discovery results */
+  .result-row {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 12px;
+    display: grid; grid-template-columns: 60px 1fr 140px;
+    gap: 20px; align-items: center; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .result-row:hover { border-color: var(--border-strong); }
+  .result-row.selected { border-color: var(--accent); }
+  .result-rank {
+    font-family: var(--font-mono); font-size: 24px; font-weight: 700;
+    color: var(--muted); text-align: center;
+  }
+  .result-row:first-child .result-rank { color: var(--accent); }
+  .result-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .result-meta { font-size: 12px; color: var(--muted); }
+  .result-areas { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .area-pill {
+    font-size: 11px; padding: 3px 8px; border-radius: 4px;
+    background: var(--surface-2); color: var(--muted);
+  }
+  .area-pill strong { color: var(--success); margin-left: 4px; }
+  .result-score {
+    font-family: var(--font-mono); font-size: 28px; font-weight: 700;
+    color: var(--success); text-align: right;
+  }
+  .result-score small { display: block; font-size: 10px;
+    color: var(--muted); font-weight: 400; letter-spacing: 1px;
+    text-transform: uppercase; margin-top: 4px; }
+
+  /* Map view */
+  .map-layout {
+    display: grid; grid-template-columns: 1fr 380px;
+    gap: 16px; height: calc(100vh - 160px);
+  }
+  #map { border-radius: var(--radius); border: 1px solid var(--border); height: 100%; min-height: 500px; }
+  .map-side {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; overflow-y: auto;
+  }
+  .pin-list { display: flex; flex-direction: column; gap: 6px; }
+  .pin-item {
+    padding: 10px 12px; border-radius: 6px; background: var(--surface-2);
+    border: 1px solid transparent; cursor: pointer; font-size: 13px;
+    transition: border-color 0.15s;
+  }
+  .pin-item:hover { border-color: var(--border-strong); }
+  .pin-item.active { border-color: var(--accent); background: #1a1007; }
+  .pin-name { font-weight: 600; margin-bottom: 2px; }
+  .pin-meta { font-size: 11px; color: var(--muted); }
+
+  .detail-panel { margin-top: 20px; }
+  .detail-name { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .detail-meta { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+  .char-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .char-table th {
+    text-align: left; padding: 6px 0; color: var(--muted);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+    border-bottom: 1px solid var(--border); font-weight: 500;
+  }
+  .char-table td {
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .char-value { font-family: var(--font-mono); font-weight: 600; }
+  .char-source { font-size: 10px; color: var(--muted); display: block; margin-top: 2px; }
+  .char-source a { color: var(--info); text-decoration: none; }
+  .char-source a:hover { text-decoration: underline; }
+
+  /* Compare */
+  .compare-select {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px; margin-bottom: 24px;
+  }
+  .compare-check {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 12px 16px; border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+  }
+  .compare-check:hover { border-color: var(--border-strong); }
+  .compare-check.active { border-color: var(--accent); background: #1a1007; }
+  .compare-check input { accent-color: var(--accent); }
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; }
+  .compare-table th, .compare-table td {
+    padding: 14px 16px; text-align: left;
+    border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  .compare-table th {
+    background: var(--surface-2); font-weight: 600;
+    font-size: 12px;
+  }
+  .compare-table th:first-child { color: var(--muted); text-transform: uppercase;
+    letter-spacing: 1px; font-size: 10px; }
+  .compare-table td:first-child { color: var(--muted); font-size: 12px; }
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  /* Misc */
+  .banner {
+    background: #1a1007; border: 1px solid var(--accent);
+    border-left-width: 3px; color: var(--warn); padding: 12px 16px;
+    border-radius: 6px; font-size: 12px; margin-bottom: 24px;
+  }
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    font-size: 13px;
+  }
+  .loading { color: var(--muted); padding: 20px; font-size: 13px; }
+  .loading::after { content: '…'; animation: dots 1.5s infinite; }
+  @keyframes dots {
+    0%,20% { content: ''; } 40% { content: '.'; }
+    60% { content: '..'; } 80%,100% { content: '...'; }
+  }
+  .error-box {
+    background: #1a0808; border: 1px solid var(--danger);
+    color: var(--danger); padding: 12px 16px; border-radius: 6px;
+    font-size: 12px;
+  }
+  code { font-family: var(--font-mono); background: var(--surface-2);
+    padding: 2px 6px; border-radius: 3px; font-size: 11px;
+    color: var(--accent); }
+
+  /* About */
+  .about-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px; margin-top: 24px; }
+  .about-card { background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; }
+  .about-card h3 { color: var(--text); text-transform: none;
+    letter-spacing: 0; font-size: 15px; margin-bottom: 8px; }
+  .about-card p { font-size: 13px; color: var(--muted); }
+
+  /* Leaflet overrides */
+  .leaflet-container { background: #050810; font-family: var(--font-sans); }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .leaflet-popup-content { font-size: 12px; margin: 12px 14px; }
+  .leaflet-popup-content strong { color: var(--accent); }
+  .leaflet-control-attribution { background: rgba(8,9,13,0.8) !important;
+    color: var(--muted) !important; font-size: 10px !important; }
+  .leaflet-control-attribution a { color: var(--muted) !important; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; min-width: 0; height: auto;
+      padding: 12px 16px; flex-direction: row; align-items: center;
+      border-right: none; border-bottom: 1px solid var(--border); }
+    .brand { font-size: 14px; margin-bottom: 0; letter-spacing: 4px; }
+    .brand-sub { display: none; }
+    nav { flex-direction: row; margin-left: auto; overflow-x: auto; }
+    nav button { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+    .sidebar-footer { display: none; }
+    main { height: calc(100vh - 60px); }
+    section.view { padding: 24px 20px; }
+    .map-layout { grid-template-columns: 1fr; height: auto; }
+    #map { height: 400px; }
+    .target-grid { grid-template-columns: 1fr; }
+    .result-row { grid-template-columns: 40px 1fr; }
+    .result-score { grid-column: 1 / -1; text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">ANALOX</div>
+  <div class="brand-sub">Planetary Analog Discovery</div>
+  <nav id="nav">
+    <button data-view="overview" class="active">Overview</button>
+    <button data-view="discover">Discover Analogs</button>
+    <button data-view="map">Explore Map</button>
+    <button data-view="compare">Compare</button>
+    <button data-view="about">About</button>
+  </nav>
+  <div class="sidebar-footer">
+    <div>Africa focus · NASA POWER · NASA PDS</div>
+  </div>
+</aside>
+
+<main>
+
+<!-- ============ OVERVIEW ============ -->
+<section class="view active" data-view="overview">
+  <h1>Discover Earth analogs for planetary science.</h1>
+  <p class="subtitle">
+    ANALOX helps researchers identify locations on Earth that share characteristics
+    with environments on Mars or the Moon — with particular focus on African sites.
+    Similarity is a signal for human review, not scientific confirmation.
+  </p>
+
+  <div class="stat-grid" id="overview-stats">
+    <div class="stat"><div class="stat-label">Candidates</div>
+      <div class="stat-value" id="stat-candidates">—</div>
+      <div class="stat-note">Across this project</div></div>
+    <div class="stat"><div class="stat-label">Research areas</div>
+      <div class="stat-value" id="stat-areas">—</div>
+      <div class="stat-note">Perspectives in consensus</div></div>
+    <div class="stat"><div class="stat-label">Criteria</div>
+      <div class="stat-value" id="stat-criteria">—</div>
+      <div class="stat-note">Measurable dimensions</div></div>
+    <div class="stat"><div class="stat-label">Target</div>
+      <div class="stat-value" style="color:var(--info)">MARS</div>
+      <div class="stat-note">Planetary reference</div></div>
+  </div>
+
+  <h2>How it works</h2>
+  <div class="about-grid">
+    <div class="about-card">
+      <h3>1 · Select a target</h3>
+      <p>Choose whether you're researching Mars or Moon analogs. The consensus
+      engine uses literature values for the target as a reference point.</p>
+    </div>
+    <div class="about-card">
+      <h3>2 · Choose criteria</h3>
+      <p>Define which research areas and characteristics matter. Each measurement
+      carries its original source — nothing is invented.</p>
+    </div>
+    <div class="about-card">
+      <h3>3 · Compare with evidence</h3>
+      <p>Min-max scaled criteria are compared with L2 distance per research area.
+      The result is decomposable: you see <em>why</em> a candidate ranks where it does.</p>
+    </div>
+  </div>
+
+  <div style="margin-top:40px; display:flex; gap:12px;">
+    <button class="btn-primary" onclick="showView('discover')">Start Exploring →</button>
+    <button class="btn-secondary" onclick="showView('map')">View Map</button>
+  </div>
+</section>
+
+<!-- ============ DISCOVER ============ -->
+<section class="view" data-view="discover">
+  <h1>Discovery Workspace</h1>
+  <p class="subtitle">Define your research question, then run the consensus engine
+  against the Mars reference candidate.</p>
+
+  <div class="banner">
+    Consensus uses NASA POWER satellite climatology and NASA-published reference values.
+    Sources are linked for every measurement.
+  </div>
+
+  <h3>Step 1 · Planetary target</h3>
+  <div class="target-grid">
+    <div class="target-card active" onclick="switchTarget('MARS')">
+      <div class="target-name">Mars</div>
+      <div class="target-desc">Hyperacidic, arid, oxidizing environments. NASA POWER climate reference.</div>
+    </div>
+    <div class="target-card" onclick="switchTarget('MOON')">
+      <div class="target-name">Moon</div>
+      <div class="target-desc">Impact structures and highland analogs across South Africa. NASA Moon Fact Sheet reference.</div>
+    </div>
+  </div>
+
+  <div style="margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:8px;">
+    <h3 style="margin-bottom:12px;">Add any location on Earth</h3>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+      Enter coordinates. We'll fetch real climate data from NASA POWER and score
+      this location against the currently selected target reference.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input id="add-lat" type="number" step="0.01" placeholder="Latitude (e.g. 14.24)"
+             style="background:var(--surface-2); border:1px solid var(--border);
+                    color:var(--text); padding:10px 12px; border-radius:6px;
+                    font-family:var(--font-mono); width:180px;" />
+      <input id="add-lon" type="number" step="0.01" placeholder="Longitude (e.g. 40.30)"
+             style="background:var(--surface-2); border:1px solid var(--border);
+                    color:var(--text); padding:10px 12px; border-radius:6px;
+                    font-family:var(--font-mono); width:180px;" />
+      <input id="add-name" type="text" placeholder="Name (optional)"
+             style="background:var(--surface-2); border:1px solid var(--border);
+                    color:var(--text); padding:10px 12px; border-radius:6px;
+                    font-family:var(--font-sans); width:200px;" />
+      <button class="btn-primary" onclick="addLocation()">Add & Analyze →</button>
+    </div>
+    <div id="add-output" style="margin-top:12px;"></div>
+  </div>
+
+  <h3>Step 2 · Research areas & criteria</h3>
+  <div id="criteria-container"><div class="loading">Loading criteria</div></div>
+
+  <div style="margin-top:24px; display:flex; gap:12px; align-items:center;">
+    <button class="btn-primary" id="run-btn" onclick="runDiscovery()">
+      Run Discovery →
+    </button>
+    <span style="font-size:12px; color:var(--muted)" id="run-hint">
+      Ranks all candidates against the Mars reference using selected areas.
+    </span>
+  </div>
+
+  <div id="results-container" style="margin-top:32px;"></div>
+  <div id="empty-cta" style="display:none; margin-top:32px; padding:32px; background:var(--surface); border:1px dashed var(--border); border-radius:8px; text-align:center;">
+    <div style="font-size:16px; font-weight:600; margin-bottom:8px;">No candidates yet</div>
+    <div style="font-size:13px; color:var(--muted); margin-bottom:20px;">
+      This project is empty. Scan NASA POWER to find real African sites whose
+      climate matches the Mars reference — then run consensus to rank them.
+    </div>
+    <button class="btn-primary" onclick="runAutoDiscover()" style="margin:0 auto;">
+      Scan NASA POWER →
+    </button>
+  </div>
+  <div style="margin-top:32px; padding-top:24px; border-top: 1px solid var(--border);">
+    <h3>Or discover new sites automatically</h3>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+      Scan a grid across Africa using NASA POWER satellite climatology and
+      insert the cells whose climate most closely matches the Mars reference.
+    </p>
+    <button class="btn-secondary" id="auto-discover-btn" onclick="runAutoDiscover()">
+      Scan NASA POWER grid →
+    </button>
+    <div id="auto-discover-output" style="margin-top:16px;"></div>
+  </div>
+</section>
+
+<!-- ============ MAP ============ -->
+<section class="view" data-view="map">
+  <h1>Explore Map</h1>
+  <p class="subtitle">Candidate locations across Africa. Click a pin or list entry to
+  inspect characteristics and sources.</p>
+
+  <div class="map-layout">
+    <div id="map"></div>
+    <div class="map-side">
+      <h3 style="margin-bottom:16px;">Candidate sites</h3>
+      <div id="pin-list" class="pin-list"><div class="loading">Loading</div></div>
+      <div id="detail-panel" class="detail-panel"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMPARE ============ -->
+<section class="view" data-view="compare">
+  <h1>Compare Locations</h1>
+  <p class="subtitle">Select up to three candidates to compare their measured
+  characteristics side by side.</p>
+
+  <div id="compare-select" class="compare-select"><div class="loading">Loading</div></div>
+  <div id="compare-output"></div>
+</section>
+
+<!-- ============ ABOUT ============ -->
+<section class="view" data-view="about">
+  <h1>About ANALOX</h1>
+  <p class="subtitle">A terrestrial analog discovery platform focused on African sites
+  for lunar and Martian research.</p>
+
+  <div class="about-grid">
+    <div class="about-card">
+      <h3>Scientific integrity</h3>
+      <p>Scores produced by ANALOX are <strong>retrieval signals</strong>, not
+      scientific findings. A candidate is never automatically classified as an
+      analog. Findings require a human author and a review step. Every report
+      prints a sample-data warning when mock values are present.</p>
+    </div>
+    <div class="about-card">
+      <h3>Consensus methodology</h3>
+      <p>For each research area, criteria are min-max scaled across all candidates
+      and the reference. L2 distance to the reference yields a similarity score
+      per area. A weighted average across areas gives the total. Weights are
+      configurable per query and never stored. The full breakdown is always
+      returned — no black boxes.</p>
+    </div>
+    <div class="about-card">
+      <h3>Data provenance</h3>
+      <p>Every measurement links to a source record with title, URL, and citation.
+      Sources are preserved verbatim — they are not modified, merged, or inferred.</p>
+    </div>
+    <div class="about-card">
+      <h3>Built on</h3>
+      <p>FastAPI · PostgreSQL · pgvector · SQLAlchemy · Pydantic. The Cochee
+      numeric-vector similarity approach was adapted here for multi-perspective
+      research consensus.</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:32px">API</h3>
+  <p style="font-size:13px; color:var(--muted)">
+    Interactive docs available at <a href="/docs" style="color:var(--info)">/docs</a>.
+  </p>
+</section>
+
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ──────────────────────────────────────────────────────────────
+// CONFIG
+// ──────────────────────────────────────────────────────────────
+const MARS_PROJECT_ID = 'a1d61627-ce36-4215-aae4-65afa148a0cd';
+const MOON_PROJECT_ID = '67e6b6c7-8a8a-4335-9963-7401bb452922';
+let PROJECT_ID = MARS_PROJECT_ID;
+const USER_ID = '00000000-0000-0000-0000-000000000001';
+
+function switchTarget(target) {
+  PROJECT_ID = target === 'MOON' ? MOON_PROJECT_ID : MARS_PROJECT_ID;
+  state.consensus = null;
+  state.selectedCandidate = null;
+  document.querySelectorAll('.target-card').forEach((c, i) => {
+    c.classList.toggle('active', (target === 'MOON') === (i === 1));
+  });
+  loadCandidates().then(() => {
+    loadAreas().then(() => {
+      renderCriteria();
+      document.getElementById('results-container').innerHTML = '';
+      updateEmptyState();
+    });
+  });
+}
+
+// ──────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────
+const state = {
+  candidates: [],
+  areas: [],
+  criteria: [],
+  selectedAreaIds: new Set(),
+  consensus: null,
+  selectedCandidate: null,
+  compareSet: new Set(),
+  map: null,
+  markers: {},
+};
+
+// ──────────────────────────────────────────────────────────────
+// API HELPER
+// ──────────────────────────────────────────────────────────────
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(`${r.status} · ${text.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character]);
+}
+
+// ──────────────────────────────────────────────────────────────
+// NAVIGATION
+// ──────────────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  const view = document.querySelector(`section[data-view="${name}"]`);
+  const btn = document.querySelector(`nav button[data-view="${name}"]`);
+  if (view) view.classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'map') setTimeout(() => ensureMap(), 50);
+  if (name === 'compare') renderCompareSelector();
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('nav').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (btn) showView(btn.dataset.view);
+});
+
+// ──────────────────────────────────────────────────────────────
+// LOADERS
+// ──────────────────────────────────────────────────────────────
+async function loadCandidates() {
+  state.candidates = await api(`/projects/${PROJECT_ID}/candidates`);
+  const realCount = state.candidates.filter(c => !c.name.includes('Reference')).length;
+  document.getElementById('stat-candidates').textContent = realCount;
+  return state.candidates;
+}
+
+async function loadAreas() {
+  state.areas = await api(`/projects/${PROJECT_ID}/areas`);
+  document.getElementById('stat-areas').textContent = state.areas.length;
+  // Fetch criteria per area
+  const perArea = await Promise.all(
+    state.areas.map(a => api(`/areas/${a.id}/criteria`))
+  );
+  state.criteria = perArea.flat();
+  document.getElementById('stat-criteria').textContent = state.criteria.length;
+  state.areas.forEach((a, i) => { a._criteria = perArea[i]; });
+  return state.areas;
+}
+
+// ──────────────────────────────────────────────────────────────
+// DISCOVER VIEW
+// ──────────────────────────────────────────────────────────────
+function renderCriteria() {
+  const container = document.getElementById('criteria-container');
+  if (!state.areas.length) {
+    container.innerHTML = '<div class="empty">No research areas defined.</div>';
+    return;
+  }
+  container.innerHTML = state.areas.map(area => `
+    <div class="criteria-group">
+      <div class="criteria-group-title">${area.name}</div>
+      <div class="criteria-group-desc">${area.description || ''}</div>
+      <div class="criteria-list">
+        ${(area._criteria || []).map(c => `
+          <label class="criteria-item" data-area="${area.id}" data-crit="${c.id}">
+            <input type="checkbox" checked data-area="${area.id}" data-crit="${c.id}"
+                   onchange="onCriterionToggle(this, '${area.id}')" />
+            ${c.name}${c.unit ? ` <span style="color:var(--muted)">(${c.unit})</span>` : ''}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+  // Initialize: all areas selected (all criteria checked)
+  state.selectedAreaIds = new Set(state.areas.map(a => a.id));
+}
+
+function onCriterionToggle(el, areaId) {
+  // If any criterion in this area is still checked, area stays active
+  const anyChecked = document.querySelectorAll(
+    `input[data-area="${areaId}"]:checked`
+  ).length > 0;
+  if (anyChecked) state.selectedAreaIds.add(areaId);
+  else state.selectedAreaIds.delete(areaId);
+  // Visual: mark parent label selected/unselected
+  document.querySelectorAll(`.criteria-item[data-area="${areaId}"]`).forEach(label => {
+    const inp = label.querySelector('input');
+    label.classList.toggle('selected', inp.checked);
+  });
+}
+
+async function runDiscovery() {
+  const btn = document.getElementById('run-btn');
+  const hint = document.getElementById('run-hint');
+  const container = document.getElementById('results-container');
+  if (state.selectedAreaIds.size === 0) {
+    container.innerHTML = '<div class="error-box">Select at least one research area.</div>';
+    return;
+  }
+  btn.disabled = true;
+  hint.textContent = 'Computing consensus…';
+  container.innerHTML = '<div class="loading">Ranking candidates</div>';
+
+  // Build weights: 1.0 for selected areas, 0.0 for unselected
+  const weights = {};
+  state.areas.forEach(a => {
+    weights[a.id] = state.selectedAreaIds.has(a.id) ? 1.0 : 0.0;
+  });
+
+  try {
+    state.consensus = await api(`/projects/${PROJECT_ID}/consensus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ weights }),
+    });
+    renderResults();
+    hint.textContent = `Ranked ${state.consensus.results.length} candidates against "${state.consensus.reference_candidate_name}".`;
+  } catch (e) {
+    container.innerHTML = `<div class="error-box">Consensus failed: ${e.message}</div>`;
+    hint.textContent = 'Failed. Check that a "Mars Reference (Literature)" candidate exists.';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderResults() {
+  const container = document.getElementById('results-container');
+  if (!state.consensus || !state.consensus.results.length) {
+    container.innerHTML = '<div class="empty">No results.</div>';
+    return;
+  }
+  container.innerHTML = `
+    <h2>Results</h2>
+    <p style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+      Scores range 0–1. Higher = more similar to the reference.
+      Per-area scores show which perspective drove the ranking.
+    </p>
+    ${state.consensus.results.map((r, i) => `
+      <div class="result-row" onclick="openCandidateInMap('${r.candidate_id}')">
+        <div class="result-rank">#${i + 1}</div>
+        <div>
+          <div class="result-name">${escapeHtml(r.candidate_name)}</div>
+          <div class="result-meta">${escapeHtml(r.country || '—')}</div>
+          <div class="result-areas">
+            ${Object.values(r.per_area).map(a => `
+              <span class="area-pill">${a.area}${a.score != null ? `<strong>${a.score.toFixed(2)}</strong>` : ''}</span>
+            `).join('')}
+          </div>
+        </div>
+        <div class="result-score">
+          ${r.total != null ? r.total.toFixed(3) : '—'}
+          <small>Total</small>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function openCandidateInMap(candidateId) {
+  const cand = state.candidates.find(c => c.id === candidateId);
+  if (!cand) return;
+  state.selectedCandidate = cand;
+  showView('map');
+  setTimeout(() => {
+    ensureMap();
+    if (state.markers[candidateId]) {
+      state.map.setView([cand.latitude, cand.longitude], 6);
+      state.markers[candidateId].openPopup();
+    }
+    renderMapDetail(cand);
+    // Highlight pin in list
+    document.querySelectorAll('.pin-item').forEach(p => {
+      p.classList.toggle('active', p.dataset.id === candidateId);
+    });
+  }, 200);
+}
+
+// ──────────────────────────────────────────────────────────────
+// MAP VIEW
+// ──────────────────────────────────────────────────────────────
+function ensureMap() {
+  if (state.map) {
+    state.map.invalidateSize();
+    return;
+  }
+  const candidatesWithCoords = state.candidates.filter(
+    c => c.latitude != null && c.longitude != null
+  );
+  const center = candidatesWithCoords.length
+    ? [candidatesWithCoords.reduce((s, c) => s + c.latitude, 0) / candidatesWithCoords.length,
+       candidatesWithCoords.reduce((s, c) => s + c.longitude, 0) / candidatesWithCoords.length]
+    : [-6, 28];
+
+  state.map = L.map('map', { zoomControl: true, scrollWheelZoom: true })
+    .setView(center, 4);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(state.map);
+
+  // Add markers
+  candidatesWithCoords.forEach(c => {
+    const isRef = c.name.includes('Mars Reference');
+    if (isRef) return;
+    const isMock = c.is_mock;
+    const marker = L.circleMarker([c.latitude, c.longitude], {
+      radius: 8,
+      fillColor: isMock ? '#ff6b1a' : '#34d399',
+      color: '#000',
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.85,
+    }).addTo(state.map);
+
+    marker.bindPopup(`
+      <strong>${escapeHtml(c.name)}</strong><br>
+      <span style="color:#6b7689">${escapeHtml(c.country || '—')}${c.region ? ' · ' + escapeHtml(c.region) : ''}</span>
+    `);
+    marker.on('click', () => {
+      state.selectedCandidate = c;
+      renderMapDetail(c);
+      document.querySelectorAll('.pin-item').forEach(p => {
+        p.classList.toggle('active', p.dataset.id === c.id);
+      });
+    });
+    state.markers[c.id] = marker;
+  });
+
+  renderPinList();
+}
+
+function renderPinList() {
+  const list = document.getElementById('pin-list');
+  const withCoords = state.candidates.filter(
+    c => !c.name.includes('Mars Reference')
+  );
+  if (!withCoords.length) {
+    list.innerHTML = '<div class="empty">No candidates with coordinates.</div>';
+    return;
+  }
+  list.innerHTML = withCoords.map(c => `
+    <div class="pin-item" data-id="${c.id}" onclick="selectPin('${c.id}')">
+      <div class="pin-name">${escapeHtml(c.name)}</div>
+      <div class="pin-meta">${escapeHtml(c.country || '—')} · ${c.latitude.toFixed(2)}, ${c.longitude.toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+
+function selectPin(candidateId) {
+  const cand = state.candidates.find(c => c.id === candidateId);
+  if (!cand) return;
+  state.selectedCandidate = cand;
+  renderMapDetail(cand);
+  document.querySelectorAll('.pin-item').forEach(p => {
+    p.classList.toggle('active', p.dataset.id === candidateId);
+  });
+  if (state.map && state.markers[candidateId]) {
+    state.map.setView([cand.latitude, cand.longitude], 6);
+    state.markers[candidateId].openPopup();
+  }
+}
+
+async function renderMapDetail(candidate) {
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = '<div class="loading">Loading characteristics</div>';
+  try {
+    const chars = await api(`/candidates/${candidate.id}/characteristics`);
+    if (!chars.length) {
+      panel.innerHTML = `
+        <div class="detail-name">${escapeHtml(candidate.name)}</div>
+        <div class="detail-meta">${escapeHtml(candidate.country || '—')}</div>
+        <div class="empty">No characteristics recorded.</div>
+      `;
+      return;
+    }
+    panel.innerHTML = `
+      <div class="detail-name">${escapeHtml(candidate.name)}</div>
+      <div class="detail-meta">
+        ${escapeHtml(candidate.country || '—')} · ${candidate.latitude?.toFixed(2)}, ${candidate.longitude?.toFixed(2)}
+      </div>
+      <div style="font-size:12px; color:var(--muted); margin-bottom:16px;">
+        ${escapeHtml(candidate.description || '')}
+      </div>
+      <table class="char-table">
+        <thead><tr><th>Characteristic</th><th>Value</th></tr></thead>
+        <tbody>
+          ${chars.map(ch => `
+            <tr>
+              <td>${ch.criterion_id.slice(0, 8)}…</td>
+              <td>
+                <span class="char-value">
+                  ${ch.value_numeric != null ? ch.value_numeric : ch.value_text || '—'}
+                  ${ch.unit || ''}
+                </span>
+                <span class="char-source">
+                  source: <a href="#" title="${ch.source_id}">${ch.source_id.slice(0, 8)}…</a>
+                </span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    panel.innerHTML = `<div class="error-box">${e.message}</div>`;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// COMPARE VIEW
+// ──────────────────────────────────────────────────────────────
+function renderCompareSelector() {
+  const container = document.getElementById('compare-select');
+  const real = state.candidates.filter(c => !c.name.includes('Mars Reference'));
+  if (!real.length) {
+    container.innerHTML = '<div class="empty">No candidates to compare.</div>';
+    return;
+  }
+  container.innerHTML = real.map(c => `
+    <label class="compare-check ${state.compareSet.has(c.id) ? 'active' : ''}">
+      <input type="checkbox" ${state.compareSet.has(c.id) ? 'checked' : ''}
+             onchange="toggleCompare('${c.id}', this)" />
+      <span>${escapeHtml(c.name)}</span>
+    </label>
+  `).join('');
+  renderCompareTable();
+}
+
+function toggleCompare(id, el) {
+  if (el.checked) {
+    if (state.compareSet.size >= 3) {
+      el.checked = false;
+      return;
+    }
+    state.compareSet.add(id);
+  } else {
+    state.compareSet.delete(id);
+  }
+  el.closest('.compare-check').classList.toggle('active', el.checked);
+  renderCompareTable();
+}
+
+async function renderCompareTable() {
+  const out = document.getElementById('compare-output');
+  if (state.compareSet.size === 0) {
+    out.innerHTML = '<div class="empty">Select candidates above to compare.</div>';
+    return;
+  }
+  out.innerHTML = '<div class="loading">Loading comparison</div>';
+  const selected = [...state.compareSet]
+    .map(id => state.candidates.find(c => c.id === id))
+    .filter(Boolean);
+
+  const allChars = await Promise.all(
+    selected.map(c => api(`/candidates/${c.id}/characteristics`))
+  );
+
+  // Gather unique criterion ids
+  const critIds = new Set();
+  allChars.forEach(chars => chars.forEach(ch => critIds.add(ch.criterion_id)));
+  const critArray = [...critIds];
+
+  // Match criterion names from state.criteria
+  const critName = (id) => state.criteria.find(c => c.id === id)?.name || id.slice(0, 8);
+
+  const getVal = (charsArr, critId) => {
+    const ch = charsArr.find(x => x.criterion_id === critId);
+    if (!ch) return '<span style="color:var(--muted)">—</span>';
+    const v = ch.value_numeric != null ? ch.value_numeric : ch.value_text;
+    return `<span class="char-value">${v ?? '—'}</span>${ch.unit ? ' ' + ch.unit : ''}`;
+  };
+
+  out.innerHTML = `
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Criterion</th>
+          ${selected.map(c => `<th>${escapeHtml(c.name)}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${critArray.map(cid => `
+          <tr>
+            <td>${critName(cid)}</td>
+            ${allChars.map(chars => `<td>${getVal(chars, cid)}</td>`).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <div style="margin-top:16px; font-size:12px; color:var(--muted);">
+      Differences are shown as-is. A missing value is not neutral — it is <em>unknown</em>.
+    </div>
+  `;
+}
+
+async function runAutoDiscover() {
+  const btn = document.getElementById('auto-discover-btn');
+  const out = document.getElementById('auto-discover-output');
+  btn.disabled = true;
+  btn.textContent = 'Scanning (30–90s)…';
+  out.innerHTML = '<div class="loading">Querying NASA POWER over Africa</div>';
+  try {
+    const result = await api(`/projects/${PROJECT_ID}/discover`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({spacing: 4.0, top_n: 10}),
+    });
+    await loadCandidates();
+    updateEmptyState();
+    out.innerHTML = `
+      <div style="background:var(--surface); border:1px solid var(--border);
+                  border-radius:8px; padding:16px;">
+        <div style="font-weight:600; margin-bottom:8px;">
+          Scanned ${result.scanned} cells · kept ${result.kept} land · inserted ${result.inserted} new candidates
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:12px;">
+          These are new candidates from NASA POWER data. Run consensus to rank
+          them alongside the pre-seeded geologist-picked sites.
+        </div>
+        ${result.new_candidates.map(c => `
+          <div style="padding:10px 0; border-top: 1px solid var(--border);">
+            <div style="font-size:13px; font-weight:500;">
+              ${c.name} <span style="color:var(--accent);">${c.score.toFixed(3)}</span>
+            </div>
+            <div style="font-size:11px; color:var(--muted);">
+              T: ${(c.characteristics['Mean temperature'] ?? 0).toFixed(1)}°C ·
+              RH: ${(c.characteristics['Relative humidity'] ?? 0).toFixed(1)}% ·
+              P: ${(c.characteristics['Precipitation'] ?? 0).toFixed(2)} mm/day
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    out.innerHTML = `<div class="error-box">Discovery failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan NASA POWER grid →';
+  }
+}
+
+async function addLocation() {
+  const lat = parseFloat(document.getElementById('add-lat').value);
+  const lon = parseFloat(document.getElementById('add-lon').value);
+  const name = document.getElementById('add-name').value.trim() || null;
+  const out = document.getElementById('add-output');
+
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 ||
+      !Number.isFinite(lon) || lon < -180 || lon > 180) {
+    out.innerHTML = '<div class="error-box">Enter valid latitude and longitude.</div>';
+    return;
+  }
+
+  out.innerHTML = '<div class="loading">Fetching NASA POWER data</div>';
+  try {
+    const result = await api(`/projects/${PROJECT_ID}/discover-coordinate`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({latitude: lat, longitude: lon, name}),
+    });
+    await loadCandidates();
+    updateEmptyState();
+
+    const message = document.createElement('div');
+    message.style.cssText = 'background:#1a3a2a; border:1px solid var(--success); padding:12px 16px; border-radius:6px; font-size:13px;';
+    const heading = document.createElement('div');
+    const label = document.createElement('strong');
+    label.textContent = result.name;
+    heading.append('✓ Added ', label, ` (${result.latitude.toFixed(2)}°, ${result.longitude.toFixed(2)}°)`);
+    message.append(heading);
+
+    const values = result.values;
+    const climate = document.createElement('span');
+    climate.style.cssText = 'font-size:11px; color:var(--muted);';
+    const formatValue = (value, digits) =>
+      value !== null && value !== undefined && Number.isFinite(Number(value))
+        ? Number(value).toFixed(digits)
+        : '—';
+    climate.textContent =
+      `T: ${formatValue(values['Mean temperature'], 1)}°C · ` +
+      `RH: ${formatValue(values['Relative humidity'], 1)}% · ` +
+      `P: ${formatValue(values['Precipitation'], 2)} mm/day (NASA POWER)`;
+    message.append(document.createElement('br'), climate);
+
+    const consensusButton = document.createElement('button');
+    consensusButton.className = 'btn-secondary';
+    consensusButton.style.cssText = 'margin-top:8px; padding:6px 14px; font-size:11px;';
+    consensusButton.textContent = 'Run Consensus Now →';
+    consensusButton.addEventListener('click', runDiscovery);
+    message.append(document.createElement('br'), consensusButton);
+    out.replaceChildren(message);
+
+    document.getElementById('add-lat').value = '';
+    document.getElementById('add-lon').value = '';
+    document.getElementById('add-name').value = '';
+  } catch (e) {
+    const error = document.createElement('div');
+    error.className = 'error-box';
+    error.textContent = `Add location failed: ${e.message}`;
+    out.replaceChildren(error);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// BOOT
+// ──────────────────────────────────────────────────────────────
+function updateEmptyState() {
+  const realCount = state.candidates.filter(c => !c.name.includes('Reference')).length;
+  const cta = document.getElementById('empty-cta');
+  if (cta) cta.style.display = realCount === 0 ? 'block' : 'none';
+}
+
+(async () => {
+  try {
+    await Promise.all([loadCandidates(), loadAreas()]);
+    renderCriteria();
+    updateEmptyState();
+  } catch (e) {
+    document.getElementById('criteria-container').innerHTML =
+      `<div class="error-box">Failed to load project data: ${e.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

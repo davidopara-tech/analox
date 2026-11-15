@@ -1,0 +1,21 @@
+services:
+  db:
+    build:
+      context: ./docker
+      dockerfile: postgres.Dockerfile
+    environment:
+      POSTGRES_USER: analox
+      POSTGRES_PASSWORD: analox
+      POSTGRES_DB: analox
+    ports:
+      - "5434:5432"
+    volumes:
+      - analox_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U analox -d analox"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  analox_pgdata:
